@@ -1,0 +1,19 @@
+[package]
+name = "azure-stats"
+version = "0.1.0"
+authors = ["dmolokanov <dmolokanov@users.noreply.github.com>"]
+edition = "2018"
+
+[dependencies]
+anyhow = "1.0"
+bollard = "0.5"
+tokio = { version = "0.2", features = ["dns", "macros", "rt-threaded", "signal", "stream", "tcp", "time"] }
+futures-util = "0.3"
+reqwest = { version = "0.10"  }
+chrono = "0.4"
+ring = "0.16"
+base64 = "0.12"
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+simple_logger = "1.6"
