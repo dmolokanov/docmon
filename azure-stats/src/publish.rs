@@ -145,22 +145,22 @@ mod tests {
         let client = Client::from_config(config).unwrap();
 
         let publisher = Publisher::new(client);
-        let handle = publisher.handle();
+        let publisher_handle = publisher.handle();
         let task = tokio::spawn(publisher.run());
 
         let data = serde_json::json!(
             {"DemoField1":"DemoValue1","DemoField2":"DemoValue2"}
         );
 
-        handle.send(data.clone());
-        handle.send(data.clone());
-        handle.send(data.clone());
-        handle.send(data.clone());
-        handle.send(data.clone());
-        handle.send(data.clone());
-        handle.send(data);
+        publisher_handle.send(data.clone());
+        publisher_handle.send(data.clone());
+        publisher_handle.send(data.clone());
+        publisher_handle.send(data.clone());
+        publisher_handle.send(data.clone());
+        publisher_handle.send(data.clone());
+        publisher_handle.send(data);
 
-        handle.shutdown();
+        publisher_handle.shutdown();
         task.await.unwrap();
     }
 }
