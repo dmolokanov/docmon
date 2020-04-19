@@ -1,9 +1,12 @@
-use std::time::Duration;
-
 use anyhow::{Context, Result};
 use azure_stats::{Client, ClientConfig, Collector, Publisher};
 use bollard::Docker;
-use tokio::time;
+use futures_util::{
+    future::{self, Either},
+    StreamExt,
+};
+use log::info;
+use tokio::signal::unix::{signal, SignalKind};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -22,11 +25,25 @@ async fn main() -> Result<()> {
     let docker = Docker::connect_with_unix_defaults()
         .with_context(|| "unable to connect to docker daemon")?;
 
-    let collector = Collector::new(docker, publisher_handle.clone());
-    tokio::spawn(collector.run()).await?;
+    let shutdown_signal = shutdown();
+    let shutdown_signal = Box::pin(shutdown_signal);
+    // todo pin on stack instead
+    // futures_util::pin_mut!(shutdown_signal);
 
-    time::delay_for(Duration::from_secs(10)).await;
+    let collector = Collector::new(docker, publisher_handle.clone());
+    tokio::spawn(collector.run(shutdown_signal)).await?;
+
     publisher_handle.shutdown();
     // join_handle.await?;
     Ok(())
+}
+
+async fn shutdown() {
+    let mut terminate = signal(SignalKind::terminate()).expect("SIGTERM signal handling failure");
+    let mut interrupt = signal(SignalKind::interrupt()).expect("SIGINT signal handling failure");
+
+    match future::select(terminate.next(), interrupt.next()).await {
+        Either::Left(_) => info!("SIGTERM received"),
+        Either::Right(_) => info!("SIGINT received"),
+    };
 }

@@ -1,51 +1,49 @@
 use std::future::Future;
 
 use bollard::Docker;
-use tokio::{
-    sync::oneshot::{self, Receiver, Sender},
-    time,
-};
+use futures_util::{future, pin_mut};
+use log::info;
+use tokio::time;
 
 use crate::{PublisherHandle, Stats};
-use log::info;
 
-pub struct Emitter<F> {
-    // sender: Sender<()>,
-    // receiver: Receiver<()>,
-    shutdown_signal: F,
+pub struct Emitter {
+    container_id: String,
+    docker: Docker,
+    publisher_handle: PublisherHandle<Stats>,
 }
 
-impl<F> Emitter<F>
-where
-    F: Future<Output = ()>,
-{
+impl Emitter {
     pub fn new(
+        container_id: String,
         docker: Docker,
-        publisher_handler: PublisherHandle<Stats>,
-        shutdown_signal: F,
+        publisher_handle: PublisherHandle<Stats>,
     ) -> Self {
-        // let (sender, receiver) = oneshot::channel();
-        // Self { sender, receiver }
-        Self { shutdown_signal }
+        Self {
+            container_id,
+            docker,
+            publisher_handle,
+        }
     }
 
-    // pub fn shutdown_handle(&self) -> EmitterShutdownHandler {
-    //     EmitterShutdownHandler(self.sender.clone())
-    // }
+    pub async fn run<F>(self, shutdown_signal: F)
+    where
+        F: Future<Output = ()> + Unpin,
+    {
+        info!("starting stats emitter for {}", self.container_id);
+        let id = self.container_id.clone();
 
-    pub async fn run(self) {
-        info!("starting stats emitter");
-        loop {
-            info!("emit data");
-            time::delay_for(std::time::Duration::from_secs(1)).await;
-        }
-        info!("stopped stats emitter");
+        let emitter = async move {
+            loop {
+                info!("emit data for {}", id);
+                time::delay_for(std::time::Duration::from_secs(1)).await;
+            }
+        };
+
+        pin_mut!(emitter);
+
+        future::select(emitter, shutdown_signal).await;
+
+        info!("stopped stats emitter for {}", self.container_id);
     }
 }
-
-// #[derive(Debug, Clone)]
-// pub struct EmitterShutdownHandler;
-
-// impl EmitterShutdownHandler {
-//     pub fn shutdown(self) {}
-// }

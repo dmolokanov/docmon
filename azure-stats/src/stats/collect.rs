@@ -3,81 +3,101 @@ use std::{collections::HashMap, future::Future, time::Duration};
 use bollard::{container::ListContainersOptions, Docker};
 use futures_util::{
     future::{self, FutureExt},
-    pin_mut,
+    select,
 };
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use tokio::{
-    sync::oneshot::{self, Receiver, Sender},
+    sync::oneshot::{self, Sender},
+    task::JoinHandle,
     time,
 };
 
-use crate::{stats::emit::Emitter, PublisherHandle, Stats};
+use super::emit::Emitter;
+use crate::{PublisherHandle, Stats};
 
 pub struct Collector {
     docker: Docker,
     publisher_handle: PublisherHandle<Stats>,
-    sender: Sender<()>,
-    receiver: Receiver<()>,
+    containers: HashMap<String, (Sender<()>, JoinHandle<()>)>,
 }
 
 impl Collector {
     pub fn new(docker: Docker, handle: PublisherHandle<Stats>) -> Self {
-        let (sender, receiver) = oneshot::channel();
         Self {
             docker,
             publisher_handle: handle,
-            sender,
-            receiver,
+            containers: HashMap::new(),
         }
     }
 
-    pub async fn run(mut self) {
+    pub async fn run<F>(mut self, shutdown_signal: F)
+    where
+        F: Future<Output = ()> + Unpin,
+    {
         info!("starting stats collector");
-        let version = self.docker.version().await.unwrap();
-        info!("docker daemon version: {:?}", version.version);
 
-        let mut containers = HashMap::new();
-
-        loop {
-            if self.receiver.try_recv().is_ok() {
-                info!("stop requested");
-                break;
+        select! {
+            _ = self.collect().fuse() => {
+                error!("stats collection finished unexpectedly");
             }
+            _ = shutdown_signal.fuse() => {
+                info!("shutdown signal received. stopping collector");
+            }
+        }
 
+        info!("shutting down all stats emitters");
+        let (shutdown_handles, join_handles): (Vec<_>, Vec<_>) =
+            self.containers.into_iter().map(|(_, x)| x).unzip();
+
+        for shutdown_handle in shutdown_handles {
+            if let Err(e) = shutdown_handle.send(()) {
+                warn!(
+                    "error occurred when sending shutdown signal to stats emitter: {:?}",
+                    e
+                );
+            }
+        }
+
+        future::join_all(join_handles).await;
+
+        info!("stats collector stopped");
+    }
+
+    async fn collect(&mut self) {
+        loop {
             let options = ListContainersOptions::<String>::default();
             match self.docker.list_containers(Some(options)).await {
                 Ok(list) => {
                     debug!("received a list of {} containers", list.len());
                     // start stats emitter for each new container
                     for container in &list {
-                        if !containers.contains_key(&container.id) {
-                            // let emitter =
-                            //     Emitter::new(self.docker.clone(), self.publisher_handle.clone());
-                            // let emitter_handle = emitter.shutdown_handle();
-                            // let join_handle = tokio::spawn(emitter.run());
-
+                        if !self.containers.contains_key(&container.id) {
                             let (tx, rx) = oneshot::channel();
-                            let a = emit_container_stats(container.id.clone(), rx.map(drop));
-                            let join_handle = tokio::spawn(a);
+                            let emitter = Emitter::new(
+                                container.id.clone(),
+                                self.docker.clone(),
+                                self.publisher_handle.clone(),
+                            );
+                            let join_handle = tokio::spawn(emitter.run(rx.map(drop)));
 
-                            containers.insert(container.id.clone(), (tx, join_handle));
+                            self.containers
+                                .insert(container.id.clone(), (tx, join_handle));
                         }
                     }
 
                     // stop stats emitter for old containers
-                    let var_name = containers
+                    for container_id in self
+                        .containers
                         .keys()
                         .filter(|container_id| {
                             !list.iter().any(|container| container.id == **container_id)
                         })
                         .cloned()
-                        .collect::<Vec<_>>();
-                    // dbg!(&list.iter().any(|container| container.id != **container_id));
-                    // dbg!(&var_name);
-                    for container_id in var_name {
+                        .collect::<Vec<_>>()
+                    {
                         info!("stopping stats emitter for {}", container_id);
                         if let Some((shutdown_handle, join_handle)) =
-                            containers.remove(&container_id)
+                            self.containers.remove(&container_id)
                         {
                             if let Err(e) = shutdown_handle.send(()) {
                                 warn!("error occurred when sending shutdown signal to stats emitter: {:?}", e);
@@ -94,43 +114,5 @@ impl Collector {
 
             time::delay_for(Duration::from_secs(1)).await;
         }
-
-        info!("shutting down all stats emitters");
-        let (shutdown_handles, join_handles): (Vec<_>, Vec<_>) =
-            containers.into_iter().map(|(_, x)| x).unzip();
-
-        for shutdown_handle in shutdown_handles {
-            if let Err(e) = shutdown_handle.send(()) {
-                warn!(
-                    "error occurred when sending shutdown signal to stats emitter: {:?}",
-                    e
-                );
-            }
-        }
-
-        future::join_all(join_handles).await;
-
-        info!("stats collector stopped");
     }
-}
-
-pub async fn emit_container_stats<F>(container_id: String, shutdown_signal: F)
-where
-    F: Future<Output = ()> + Unpin,
-{
-    info!("starting stats emitter for {}", container_id);
-    let id = container_id.clone();
-
-    let emitter = async move {
-        loop {
-            info!("emit data for {}", id);
-            time::delay_for(std::time::Duration::from_secs(1)).await;
-        }
-    };
-
-    pin_mut!(emitter);
-
-    future::select(emitter, shutdown_signal).await;
-
-    info!("stopped stats emitter for {}", container_id);
 }
