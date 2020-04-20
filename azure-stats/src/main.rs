@@ -20,7 +20,7 @@ async fn main() -> Result<()> {
 
     let publisher = Publisher::new(client);
     let publisher_handle = publisher.handle();
-    // let join_handle = tokio::spawn(publisher.run());
+    let join_handle = tokio::spawn(publisher.run());
 
     let docker = Docker::connect_with_unix_defaults()
         .with_context(|| "unable to connect to docker daemon")?;
@@ -34,7 +34,7 @@ async fn main() -> Result<()> {
     tokio::spawn(collector.run(shutdown_signal)).await?;
 
     publisher_handle.shutdown();
-    // join_handle.await?;
+    join_handle.await?;
     Ok(())
 }
 

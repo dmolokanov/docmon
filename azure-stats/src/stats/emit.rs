@@ -1,8 +1,8 @@
 use std::future::Future;
 
 use bollard::Docker;
-use futures_util::{future, pin_mut};
-use log::info;
+use futures_util::{future, pin_mut, StreamExt};
+use log::{debug, info, trace, warn};
 use tokio::time;
 
 use crate::{PublisherHandle, Stats};
@@ -31,12 +31,25 @@ impl Emitter {
         F: Future<Output = ()> + Unpin,
     {
         info!("starting stats emitter for {}", self.container_id);
-        let id = self.container_id.clone();
+        let container_id = self.container_id.clone();
 
         let emitter = async move {
             loop {
-                info!("emit data for {}", id);
-                time::delay_for(std::time::Duration::from_secs(1)).await;
+                let options = bollard::container::StatsOptions { stream: true };
+                let mut stats = self.docker.stats(&self.container_id, Some(options));
+
+                while let Some(stats) = stats.next().await {
+                    match stats {
+                        Ok(stats) => {
+                            warn!("emit docker stats for {}", self.container_id);
+                            self.publisher_handle.send(stats.into());
+                        }
+                        Err(e) => info!(
+                            "unable to read docker stats for {}. {:?}",
+                            self.container_id, e
+                        ),
+                    }
+                }
             }
         };
 
@@ -44,6 +57,6 @@ impl Emitter {
 
         future::select(emitter, shutdown_signal).await;
 
-        info!("stopped stats emitter for {}", self.container_id);
+        info!("stopped stats emitter for {}", container_id);
     }
 }
