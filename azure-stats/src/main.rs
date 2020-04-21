@@ -10,7 +10,7 @@ use tokio::signal::unix::{signal, SignalKind};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    simple_logger::init_with_level(log::Level::Info)?;
+    env_logger::init();
 
     let customer_id = "";
     let shared_key = "";

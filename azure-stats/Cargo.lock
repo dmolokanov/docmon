@@ -58,6 +58,7 @@ dependencies = [
  "base64 0.12.0",
  "bollard",
  "chrono",
+ "env_logger",
  "futures-util",
  "log",
  "reqwest",

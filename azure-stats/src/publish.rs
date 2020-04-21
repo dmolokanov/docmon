@@ -41,7 +41,7 @@ where
                         debug!("new item available in the channel");
                         items.push(data);
 
-                        if items.len() >= 2 {
+                        if items.len() >= 100 {
                             info!("accumulated too many items {}. try to send", items.len());
                             break;
                         }
@@ -66,8 +66,7 @@ where
 
             // send all messages to log analytics if any
             if !items.is_empty() {
-                debug!("sending data: {} item(s)", items.len());
-
+                info!("sending data: {} item(s)", items.len());
                 if let Ok(data) = serde_json::to_string(&items) {
                     if let Err(e) = self.client.send(data.into_bytes()).await {
                         warn!("cannot send data: {}", e);
@@ -76,6 +75,8 @@ where
                         items.clear();
                     }
                 }
+            } else {
+                info!("no items to send")
             }
 
             if close {

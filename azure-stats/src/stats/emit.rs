@@ -1,9 +1,8 @@
-use std::future::Future;
+use std::{convert::TryInto, future::Future};
 
 use bollard::Docker;
 use futures_util::{future, pin_mut, StreamExt};
-use log::{debug, info, trace, warn};
-use tokio::time;
+use log::{info, trace, warn};
 
 use crate::{PublisherHandle, Stats};
 
@@ -41,10 +40,12 @@ impl Emitter {
                 while let Some(stats) = stats.next().await {
                     match stats {
                         Ok(stats) => {
-                            warn!("emit docker stats for {}", self.container_id);
-                            self.publisher_handle.send(stats.into());
+                            trace!("emit docker stats for {}", self.container_id);
+                            if let Ok(stats) = stats.try_into() {
+                                self.publisher_handle.send(stats);
+                            }
                         }
-                        Err(e) => info!(
+                        Err(e) => warn!(
                             "unable to read docker stats for {}. {:?}",
                             self.container_id, e
                         ),
