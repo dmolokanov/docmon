@@ -79,13 +79,11 @@ where
             // send all messages to log analytics if any
             if !items.is_empty() {
                 info!("sending data: {} item(s)", items.len());
-                if let Ok(data) = serde_json::to_string(&items) {
-                    if let Err(e) = self.client.send(&self.log_name, data.into_bytes()).await {
-                        warn!("cannot send data: {}", e);
-                    } else {
-                        info!("successfully sent data");
-                        items.clear();
-                    }
+                if let Err(e) = self.client.send(&self.log_name, &items).await {
+                    warn!("cannot send data: {}", e);
+                } else {
+                    info!("successfully sent data");
+                    items.clear();
                 }
             } else {
                 info!("no items to send")

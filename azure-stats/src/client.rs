@@ -2,7 +2,7 @@ use std::str;
 
 use anyhow::{anyhow, Result};
 use chrono::Utc;
-use hyper::{body, client::HttpConnector, Body, Request, StatusCode};
+use hyper::{body, client::HttpConnector, Body, Method, Request, StatusCode};
 use hyper_tls::HttpsConnector;
 use log::debug;
 use openssl::{
@@ -10,7 +10,7 @@ use openssl::{
     pkey::{PKey, Private},
     sign::Signer,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 pub struct Client {
     customer_id: CustomerId,
@@ -41,22 +41,27 @@ impl Client {
         })
     }
 
-    pub async fn send(&self, log_name: &str, data: Vec<u8>) -> Result<()> {
+    pub async fn send<I>(&self, log_name: &str, items: &I) -> Result<()>
+    where
+        I: IntoIterator + Serialize,
+        I::Item: Serialize,
+    {
+        let data = serde_json::to_string(items)?;
         let date = Utc::now().format("%a, %d %b %Y %T GMT").to_string();
-        let signature = self.build_signature(&date, &data)?;
+        let signature = self.build_signature(&date, data.as_bytes())?;
 
         debug!("sending data to {} log", log_name);
 
         let req = Request::builder()
-            .method(hyper::Method::POST)
+            .method(Method::POST)
             .uri(&self.url)
             .header("Accept", "application/json")
             .header("Content-Type", "application/json")
             .header("Log-Type", log_name)
             .header("Authorization", signature)
             .header("x-ms-date", date)
-            .header("time-generated-field", "")
-            .body(hyper::Body::from(data))?;
+            .header("time-generated-field", "timestamp")
+            .body(Body::from(data))?;
 
         let res = self.client.request(req).await?;
 
@@ -156,9 +161,28 @@ mod tests {
         let config = ClientConfig::new("", "");
         let client = Client::new(config).unwrap();
 
-        let data = r#"[{"DemoField1":"DemoValue1","DemoField2":"DemoValue2"},{"DemoField3":"DemoValue3","DemoField4":"DemoValue4"}]"#;
-        let res = client.send("TestData", data.as_bytes().to_vec()).await;
+        let data = vec![
+            DemoItem {
+                field_1: Some("DemoValue1".to_string()),
+                field_2: Some("DemoValue2".to_string()),
+                ..DemoItem::default()
+            },
+            DemoItem {
+                field_3: Some("DemoValue3".to_string()),
+                field_4: Some("DemoValue4".to_string()),
+                ..DemoItem::default()
+            },
+        ];
+        let res = client.send("TestData", &data).await;
 
         assert!(matches!(res, Ok(_)));
+    }
+
+    #[derive(Debug, Default, serde::Serialize)]
+    struct DemoItem {
+        field_1: Option<String>,
+        field_2: Option<String>,
+        field_3: Option<String>,
+        field_4: Option<String>,
     }
 }
