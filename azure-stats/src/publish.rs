@@ -140,7 +140,7 @@ mod tests {
 
     #[tokio::test]
     async fn it_publishes_data_from_channel() {
-        let _ = simple_logger::init_with_level(log::Level::Debug);
+        let _ = env_logger::builder().is_test(true).try_init();
 
         let config = ClientConfig::new("", "", "StatEntries");
         let client = Client::from_config(config).unwrap();

@@ -1,13 +1,22 @@
+use std::str;
+
 use anyhow::{anyhow, Result};
+use chrono::Utc;
+use hyper::{body, client::HttpConnector, Body, Request, StatusCode};
+use hyper_tls::HttpsConnector;
 use log::debug;
-use reqwest::Body;
-use ring::hmac::{self, Key, HMAC_SHA256};
+use openssl::{
+    hash::MessageDigest,
+    pkey::{PKey, Private},
+    sign::Signer,
+};
 
 pub struct Client {
     customer_id: String,
-    key: Key,
+    key: PKey<Private>,
     url: String,
     name: String,
+    client: hyper::Client<HttpsConnector<HttpConnector>, Body>,
 }
 
 impl Client {
@@ -18,38 +27,45 @@ impl Client {
         );
 
         let key = base64::decode(config.shared_key)?;
-        let key = Key::new(HMAC_SHA256, &key);
+        let key = PKey::hmac(&key)?;
+
+        let client = hyper::Client::builder().build(HttpsConnector::new());
+
         Ok(Self {
             customer_id: config.customer_id,
             name: config.name,
             key,
             url,
+            client,
         })
     }
 
     pub async fn send(&self, data: Vec<u8>) -> Result<()> {
-        let date = chrono::Utc::now().format("%a, %d %b %Y %T GMT").to_string();
+        let date = Utc::now().format("%a, %d %b %Y %T GMT").to_string();
         let signature = self.build_signature(&date, &data)?;
 
         debug!("sending data to {} log", self.name);
-        let res = reqwest::Client::new()
-            .post(&self.url)
+
+        let req = Request::builder()
+            .method(hyper::Method::POST)
+            .uri(&self.url)
             .header("Accept", "application/json")
             .header("Content-Type", "application/json")
             .header("Log-Type", &self.name)
             .header("Authorization", signature)
             .header("x-ms-date", date)
             .header("time-generated-field", "")
-            .body(Body::from(data))
-            .send()
-            .await?;
+            .body(hyper::Body::from(data))?;
 
-        if res.status() != reqwest::StatusCode::OK {
+        let res = self.client.request(req).await?;
+
+        if res.status() != StatusCode::OK {
             let mut err = format!("Response: {:?}. ", res);
-            err.push_str(&format!(
-                "Content: {}",
-                res.text().await.expect("read content")
-            ));
+
+            let bytes = body::to_bytes(res.into_body()).await?;
+            let content = str::from_utf8(bytes.as_ref())?;
+            err.push_str(&format!("Content: {}", content));
+
             return Err(anyhow!(err));
         }
 
@@ -69,9 +85,11 @@ impl Client {
     }
 
     fn sign(&self, secret: &str) -> Result<String> {
-        let tag = hmac::sign(&self.key, secret.as_bytes());
-        let signature = base64::encode(tag.as_ref());
-        Ok(signature)
+        let mut signer = Signer::new(MessageDigest::sha256(), &self.key)?;
+        signer.update(secret.as_bytes().as_ref())?;
+        let signature = signer.sign_to_vec()?;
+
+        Ok(base64::encode(signature))
     }
 }
 
