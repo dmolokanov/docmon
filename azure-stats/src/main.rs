@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
-use azure_stats::{Client, ClientConfig, Collector, Publisher};
+use azure_stats::{Client, Collector, Config, Publisher};
 use bollard::Docker;
+use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_version, Arg};
 use futures_util::{
     future::{self, Either},
     StreamExt,
@@ -12,13 +13,27 @@ use tokio::signal::unix::{signal, SignalKind};
 async fn main() -> Result<()> {
     env_logger::init();
 
-    let customer_id = "";
-    let shared_key = "";
+    let config = app_from_crate!()
+        .arg(
+            Arg::with_name("config")
+                .short("c")
+                .long("config")
+                .value_name("FILE")
+                .help("Sets a config file")
+                .takes_value(true)
+                .default_value("config.toml"),
+        )
+        .get_matches()
+        .value_of("config")
+        .map(Config::from_file)
+        .transpose()?
+        .expect("config");
 
-    let config = ClientConfig::new(customer_id, shared_key, "StatEntries");
-    let client = Client::from_config(config).unwrap();
+    let (client_config, publisher_config) = config.into_parts();
 
-    let publisher = Publisher::new(client);
+    let client = Client::new(client_config).unwrap();
+
+    let publisher = Publisher::new(client, publisher_config);
     let publisher_handle = publisher.handle();
     let join_handle = tokio::spawn(publisher.run());
 

@@ -1,6 +1,11 @@
+use std::time::Duration;
+
 use log::{debug, info, warn};
-use serde::Serialize;
-use tokio::sync::mpsc::{self, error::TryRecvError, UnboundedReceiver, UnboundedSender};
+use serde::{Deserialize, Serialize};
+use tokio::{
+    sync::mpsc::{self, error::TryRecvError, UnboundedReceiver, UnboundedSender},
+    time,
+};
 
 use crate::Client;
 
@@ -8,18 +13,25 @@ pub struct Publisher<D> {
     sender: UnboundedSender<Message<D>>,
     receiver: UnboundedReceiver<Message<D>>,
     client: Client,
+    log_name: String,
+    interval: Duration,
+    batch_size: usize,
 }
 
 impl<D> Publisher<D>
 where
     D: Serialize + std::fmt::Debug,
 {
-    pub fn new(client: Client) -> Self {
+    pub fn new(client: Client, config: PublisherConfig) -> Self {
+        let (log_name, batch_size, interval) = config.into_parts();
         let (sender, receiver) = mpsc::unbounded_channel();
         Self {
             sender,
             receiver,
             client,
+            log_name,
+            batch_size,
+            interval,
         }
     }
 
@@ -30,7 +42,7 @@ where
     pub async fn run(mut self) {
         info!("starting publisher");
 
-        let mut items = Vec::new();
+        let mut items = Vec::with_capacity(self.batch_size);
         let mut close = false;
         let mut wait = false;
         loop {
@@ -41,7 +53,7 @@ where
                         debug!("new item available in the channel");
                         items.push(data);
 
-                        if items.len() >= 100 {
+                        if items.len() >= items.capacity() {
                             info!("accumulated too many items {}. try to send", items.len());
                             break;
                         }
@@ -68,7 +80,7 @@ where
             if !items.is_empty() {
                 info!("sending data: {} item(s)", items.len());
                 if let Ok(data) = serde_json::to_string(&items) {
-                    if let Err(e) = self.client.send(data.into_bytes()).await {
+                    if let Err(e) = self.client.send(&self.log_name, data.into_bytes()).await {
                         warn!("cannot send data: {}", e);
                     } else {
                         info!("successfully sent data");
@@ -85,9 +97,8 @@ where
             }
 
             if wait {
-                let timeout = std::time::Duration::from_secs(10);
-                debug!("waiting default timeout {} sec", timeout.as_secs());
-                tokio::time::delay_for(timeout).await;
+                debug!("waiting {} sec", self.interval.as_secs());
+                time::delay_for(self.interval).await;
 
                 wait = false;
             }
@@ -127,6 +138,31 @@ where
     }
 }
 
+#[derive(Debug, Deserialize)]
+pub struct PublisherConfig {
+    log_name: String,
+    batch_size: usize,
+    interval: usize,
+}
+
+impl PublisherConfig {
+    pub fn new(log_name: impl Into<String>, batch_size: usize, interval: usize) -> Self {
+        Self {
+            log_name: log_name.into(),
+            batch_size,
+            interval,
+        }
+    }
+
+    pub fn into_parts(self) -> (String, usize, Duration) {
+        (
+            self.log_name,
+            self.batch_size,
+            Duration::from_secs(self.interval as u64),
+        )
+    }
+}
+
 #[derive(Debug)]
 pub enum Message<D> {
     Stop,
@@ -142,10 +178,11 @@ mod tests {
     async fn it_publishes_data_from_channel() {
         let _ = env_logger::builder().is_test(true).try_init();
 
-        let config = ClientConfig::new("", "", "StatEntries");
-        let client = Client::from_config(config).unwrap();
+        let config = ClientConfig::new("", "");
+        let client = Client::new(config).unwrap();
 
-        let publisher = Publisher::new(client);
+        let config = PublisherConfig::new("StatEntries", 100, 10);
+        let publisher = Publisher::new(client, config);
         let publisher_handle = publisher.handle();
         let task = tokio::spawn(publisher.run());
 
