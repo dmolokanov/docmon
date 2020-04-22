@@ -1,6 +1,5 @@
 [package]
 name = "docmon"
-description = "A daemon for sending a live stream of container(s) resourse usage statistics to Azure Log Analytics"
 version = "0.1.0"
 authors = ["dmolokanov <dmolokanov@users.noreply.github.com>"]
 edition = "2018"
@@ -8,19 +7,18 @@ edition = "2018"
 [dependencies]
 anyhow = "1.0"
 bollard = "0.5"
-tokio = { version = "0.2", features = ["dns", "macros", "rt-threaded", "signal", "stream", "tcp", "time"] }
+tokio = { version = "0.2", default-features = false, features = ["stream", "tcp", "time"] }
 futures-util = "0.3"
 chrono = "0.4"
 base64 = "0.12"
 serde_json = "1.0"
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 log = "0.4"
-env_logger = "0.7"
 hyper = { version = "0.13", default-features = false, features = ["tcp"] }
 hyper-tls = "0.4"
 openssl = "0.10"
-clap = "2.33"
 config = { version = "0.10", default-features = false, features = ["toml"] }
 
 [dev-dependencies]
 tempfile = "3.1.0"
+env_logger = "0.7"

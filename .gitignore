@@ -6,4 +6,4 @@
 **/*.rs.bk
 
 # config file
-config.toml
+docmond/config.toml
