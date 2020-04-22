@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use bollard::Docker;
 use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_version, Arg};
 use docmon::{Client, Collector, Config, Publisher};
+use env_logger::{Builder, Env};
 use futures_util::{
     future::{self, Either},
     pin_mut, StreamExt,
@@ -11,7 +12,7 @@ use tokio::signal::unix::{signal, SignalKind};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    env_logger::init();
+    Builder::from_env(Env::new().filter_or("DOCMON_LOG", "info")).init();
 
     let config = app_from_crate!()
         .arg(

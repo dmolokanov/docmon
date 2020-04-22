@@ -1,0 +1,16 @@
+[Unit]
+Description=Docker stats daemon
+After=network-online.target docker.service
+Wants=network-online.target docker.service
+
+[Service]
+Environment=DOCMON_LOG=info
+ExecStart=/usr/bin/docmond -c /etc/docmon/config.toml
+KillMode=process
+TimeoutStartSec=600
+TimeoutStopSec=40
+Restart=on-failure
+RestartPreventExitStatus=153
+
+[Install]
+WantedBy=multi-user.target

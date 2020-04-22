@@ -15,7 +15,7 @@ impl Config {
     pub fn from_file(path: impl AsRef<Path>) -> Result<Config, ConfigError> {
         let mut config = config::Config::new();
         config.merge(File::from(path.as_ref()))?;
-        config.merge(Environment::with_prefix("AZURE_STATS_").separator("__"))?;
+        config.merge(Environment::with_prefix("DOCMON_").separator("__"))?;
 
         config.try_into()
     }

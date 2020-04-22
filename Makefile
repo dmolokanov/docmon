@@ -9,6 +9,7 @@ INSTALL_PROGRAM=$(INSTALL)
 prefix?=/usr
 exec_prefix?=$(prefix)
 sysconfdir?=/etc
+unitdir?=/lib/systemd/system
 bindir?=$(exec_prefix)/bin
 srcdir?=.
 
@@ -22,10 +23,12 @@ release:
 install: release
 	$(INSTALL_PROGRAM) -D $(TARGET)/docmond $(DESTDIR)$(bindir)/docmond
 	$(INSTALL_DATA) -D $(srcdir)/contrib/config.toml $(DESTDIR)$(sysconfdir)/docmon/config.toml
+	$(INSTALL_DATA) -D $(srcdir)/contrib/docmon.service $(DESTDIR)$(unitdir)/docmon.service
 
 uninstall:
 	rm -rf $(DESTDIR)$(bindir)/docmond
 	-rm $(DESTDIR)$(sysconfdir)/docmon/config.toml
+	-rm $(DESTDIR)$(unitdir)/docmon.service
 
 clean:
 	cargo clean

@@ -1,6 +1,6 @@
 [package]
 name = "docmond"
-description = "A daemon for sending a live stream of container(s) resourse usage statistics to Azure Log Analytics"
+description = "A daemon for sending a live stream of container(s) resource usage statistics to Azure Log Analytics"
 version = "0.1.0"
 authors = ["dmolokanov <dmolokanov@users.noreply.github.com>"]
 edition = "2018"
