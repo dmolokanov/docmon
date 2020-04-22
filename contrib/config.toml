@@ -1,0 +1,8 @@
+[client]
+customer_id = ""
+shared_key = ""
+
+[publisher]
+log_name = "StatEntries"
+batch_size = 3
+interval = 10
