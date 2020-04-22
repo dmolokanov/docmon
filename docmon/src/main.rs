@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
-use azure_stats::{Client, Collector, Config, Publisher};
 use bollard::Docker;
 use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_version, Arg};
+use docmon::{Client, Collector, Config, Publisher};
 use futures_util::{
     future::{self, Either},
     pin_mut, StreamExt,
