@@ -92,20 +92,21 @@ impl TryFrom<bollard::container::Stats> for Stats {
                 .blkio_stats
                 .io_service_bytes_recursive
                 .map_or((None, None), |entries| {
-                    let (read, write) = entries.iter().fold((0, 0), |(read, write), stats| {
-                        match stats.op.as_str() {
-                            "r" | "R" => (read + stats.value, write),
-                            "w" | "W" => (read, write + stats.value),
-                            _ => (read, write),
-                        }
-                    });
+                    let (read, write) =
+                        entries
+                            .iter()
+                            .fold((0, 0), |(read, write), stats| match &stats.op[..1] {
+                                "r" | "R" => (read + stats.value, write),
+                                "w" | "W" => (read, write + stats.value),
+                                _ => (read, write),
+                            });
                     (Some(read), Some(write))
                 });
 
         Ok(Self {
             timestamp: stats.read,
-            id: stats.id,
-            name: stats.name,
+            id: stats.id[..12].into(),
+            name: stats.name[1..].into(),
             cpu_percentage,
             memory,
             memory_percentage,
