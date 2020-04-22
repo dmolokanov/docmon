@@ -4,7 +4,7 @@ use bollard::Docker;
 use clap::{app_from_crate, crate_authors, crate_description, crate_name, crate_version, Arg};
 use futures_util::{
     future::{self, Either},
-    StreamExt,
+    pin_mut, StreamExt,
 };
 use log::info;
 use tokio::signal::unix::{signal, SignalKind};
@@ -32,23 +32,18 @@ async fn main() -> Result<()> {
     let (client_config, publisher_config) = config.into_parts();
 
     let client = Client::new(client_config).unwrap();
-
-    let publisher = Publisher::new(client, publisher_config);
-    let publisher_handle = publisher.handle();
+    let (publisher, publisher_handle) = Publisher::new(client, publisher_config);
     let join_handle = tokio::spawn(publisher.run());
 
     let docker = Docker::connect_with_unix_defaults()
         .with_context(|| "unable to connect to docker daemon")?;
 
     let shutdown_signal = shutdown();
-    let shutdown_signal = Box::pin(shutdown_signal);
-    // todo pin on stack instead
-    // futures_util::pin_mut!(shutdown_signal);
+    pin_mut!(shutdown_signal);
 
-    let collector = Collector::new(docker, publisher_handle.clone());
-    tokio::spawn(collector.run(shutdown_signal)).await?;
+    let collector = Collector::new(docker, publisher_handle);
+    collector.run(shutdown_signal).await;
 
-    publisher_handle.shutdown();
     join_handle.await?;
     Ok(())
 }

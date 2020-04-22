@@ -1,17 +1,17 @@
 use std::time::Duration;
 
+use futures_util::{select, FutureExt, StreamExt};
 use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 use tokio::{
-    sync::mpsc::{self, error::TryRecvError, UnboundedReceiver, UnboundedSender},
+    sync::mpsc::{self, UnboundedReceiver, UnboundedSender},
     time,
 };
 
 use crate::Client;
 
 pub struct Publisher<D> {
-    sender: UnboundedSender<Message<D>>,
-    receiver: UnboundedReceiver<Message<D>>,
+    receiver: UnboundedReceiver<D>,
     client: Client,
     log_name: String,
     interval: Duration,
@@ -22,61 +22,39 @@ impl<D> Publisher<D>
 where
     D: Serialize + std::fmt::Debug,
 {
-    pub fn new(client: Client, config: PublisherConfig) -> Self {
+    pub fn new(client: Client, config: PublisherConfig) -> (Publisher<D>, PublisherHandle<D>) {
         let (log_name, batch_size, interval) = config.into_parts();
         let (sender, receiver) = mpsc::unbounded_channel();
-        Self {
-            sender,
+
+        let publisher = Publisher {
             receiver,
             client,
             log_name,
             batch_size,
             interval,
-        }
-    }
+        };
+        let handle = PublisherHandle(sender);
 
-    pub fn handle(&self) -> PublisherHandle<D> {
-        PublisherHandle(self.sender.clone())
+        (publisher, handle)
     }
 
     pub async fn run(mut self) {
         info!("starting publisher");
 
         let mut items = Vec::with_capacity(self.batch_size);
-        let mut close = false;
-        let mut wait = false;
-        loop {
-            debug!("staring to collect messages from channel");
-            loop {
-                match self.receiver.try_recv() {
-                    Ok(Message::Data(data)) => {
-                        debug!("new item available in the channel");
-                        items.push(data);
+        let mut stop_requested = false;
 
-                        if items.len() >= items.capacity() {
-                            info!("accumulated too many items {}. try to send", items.len());
-                            break;
-                        }
-                    }
-                    Ok(Message::Stop) => {
-                        info!("stop requested");
-                        close = true;
-                        break;
-                    }
-                    Err(TryRecvError::Empty) => {
-                        debug!("no messages in the channel. abort");
-                        wait = true;
-                        break;
-                    }
-                    Err(TryRecvError::Closed) => {
-                        warn!("channel closed unexpectedly. abort");
-                        close = true;
-                        break;
-                    }
+        loop {
+            select! {
+                closed = collect(&mut self.receiver, &mut items).fuse() => {
+                    debug!("collected {} item(s)", items.len());
+                    stop_requested = closed;
+                },
+                _ = time::delay_for(self.interval).fuse() => {
+                    debug!("default interval expired");
                 }
             }
 
-            // send all messages to log analytics if any
             if !items.is_empty() {
                 info!("sending data: {} item(s)", items.len());
                 if let Err(e) = self.client.send(&self.log_name, &items).await {
@@ -89,16 +67,9 @@ where
                 info!("no items to send")
             }
 
-            if close {
+            if stop_requested {
                 info!("stopping publisher");
                 break;
-            }
-
-            if wait {
-                debug!("waiting {} sec", self.interval.as_secs());
-                time::delay_for(self.interval).await;
-
-                wait = false;
             }
         }
 
@@ -106,32 +77,33 @@ where
     }
 }
 
+async fn collect<D>(receiver: &mut UnboundedReceiver<D>, items: &mut Vec<D>) -> bool {
+    loop {
+        if let Some(item) = receiver.next().await {
+            debug!("new item available in the channel");
+            items.push(item);
+
+            if items.len() >= items.capacity() {
+                info!("items batch is full");
+                return false;
+            }
+        } else {
+            info!("channel is closed");
+            return true;
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
-pub struct PublisherHandle<D>(UnboundedSender<Message<D>>);
+pub struct PublisherHandle<D>(UnboundedSender<D>);
 
 impl<D> PublisherHandle<D>
 where
     D: std::fmt::Debug,
 {
     pub fn send(&self, data: D) {
-        self.send_message(Message::Data(data));
-    }
-
-    pub fn shutdown(self) {
-        self.send_message(Message::Stop);
-    }
-
-    fn send_message(&self, message: Message<D>) {
-        let message_type = match message {
-            Message::Stop => "stop",
-            Message::Data(_) => "data",
-        };
-
-        if let Err(e) = self.0.send(message) {
-            warn!(
-                "Unable to send a {} message to channel: {:?}",
-                message_type, e
-            );
+        if let Err(e) = self.0.send(data) {
+            warn!("Unable to send a message to channel: {:?}", e);
         }
     }
 }
@@ -161,12 +133,6 @@ impl PublisherConfig {
     }
 }
 
-#[derive(Debug)]
-pub enum Message<D> {
-    Stop,
-    Data(D),
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -176,12 +142,14 @@ mod tests {
     async fn it_publishes_data_from_channel() {
         let _ = env_logger::builder().is_test(true).try_init();
 
-        let config = ClientConfig::new("", "");
+        let customer_id = "";
+        let shared_key = "";
+
+        let config = ClientConfig::new(customer_id, shared_key);
         let client = Client::new(config).unwrap();
 
-        let config = PublisherConfig::new("StatEntries", 100, 10);
-        let publisher = Publisher::new(client, config);
-        let publisher_handle = publisher.handle();
+        let config = PublisherConfig::new("StatEntries", 10, 2);
+        let (publisher, publisher_handle) = Publisher::new(client, config);
         let task = tokio::spawn(publisher.run());
 
         let data = serde_json::json!(
@@ -196,7 +164,8 @@ mod tests {
         publisher_handle.send(data.clone());
         publisher_handle.send(data);
 
-        publisher_handle.shutdown();
+        drop(publisher_handle);
+
         task.await.unwrap();
     }
 }
