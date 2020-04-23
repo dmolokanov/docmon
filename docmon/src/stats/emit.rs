@@ -2,7 +2,7 @@ use std::{convert::TryInto, future::Future};
 
 use bollard::Docker;
 use futures_util::{future, pin_mut, StreamExt};
-use log::{info, trace, warn};
+use log::{debug, info, warn};
 
 use crate::{PublisherHandle, Stats};
 
@@ -40,8 +40,9 @@ impl Emitter {
                 while let Some(stats) = stats.next().await {
                     match stats {
                         Ok(stats) => {
-                            trace!("emit docker stats for {}", self.container_id);
+                            debug!("received docker stats: {:?}", stats);
                             if let Ok(stats) = stats.try_into() {
+                                debug!("converted from docker stats into: {:?}", stats);
                                 self.publisher_handle.send(stats);
                             }
                         }

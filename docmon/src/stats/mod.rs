@@ -32,8 +32,11 @@ impl TryFrom<bollard::container::Stats> for Stats {
             return Err(anyhow!("current measurement unavailable"));
         }
 
-        let cpu_delta = (stats.cpu_stats.cpu_usage.total_usage
-            - stats.precpu_stats.cpu_usage.total_usage) as f64;
+        let cpu_delta = stats
+            .cpu_stats
+            .cpu_usage
+            .total_usage
+            .checked_sub(stats.precpu_stats.cpu_usage.total_usage);
 
         let online_cpus = match stats.cpu_stats.online_cpus {
             Some(cpus) => cpus as f64,
@@ -45,16 +48,17 @@ impl TryFrom<bollard::container::Stats> for Stats {
                 .map_or(0, |usage| usage.len()) as f64,
         };
 
-        let cpu_percentage = stats
-            .cpu_stats
-            .system_cpu_usage
-            .and_then(|usage| {
-                stats
-                    .precpu_stats
-                    .system_cpu_usage
-                    .map(|previous| (usage - previous) as f64)
-            })
-            .map(|system_delta| (cpu_delta / system_delta) * online_cpus * 100.0);
+        let system_delta = stats.cpu_stats.system_cpu_usage.and_then(|usage| {
+            stats
+                .precpu_stats
+                .system_cpu_usage
+                .and_then(|previous| usage.checked_sub(previous))
+        });
+
+        let cpu_percentage = cpu_delta.and_then(|cpu_delta| {
+            system_delta
+                .map(|system_delta| cpu_delta as f64 / system_delta as f64 * online_cpus * 100.0)
+        });
 
         // DO NOT REMOVE this block calculates memory usage as docker cli master
         // let memory = stats
@@ -70,15 +74,17 @@ impl TryFrom<bollard::container::Stats> for Stats {
         //             .map(|usage| usage - inactive)
         //     })
         //     .or(stats.memory_stats.usage);
-        let memory = stats
-            .memory_stats
-            .usage
-            .and_then(|usage| stats.memory_stats.stats.map(|stats| usage - stats.cache));
+        let memory = stats.memory_stats.usage.and_then(|usage| {
+            stats
+                .memory_stats
+                .stats
+                .and_then(|stats| usage.checked_sub(stats.cache))
+        });
 
         let memory_limit = stats.memory_stats.limit;
 
         let memory_percentage = memory
-            .and_then(|memory| memory_limit.map(|limit| (memory as f64) / (limit as f64) * 100.0));
+            .and_then(|memory| memory_limit.map(|limit| memory as f64 / limit as f64 * 100.0));
 
         let (network_rx, network_tx) = stats.networks.map_or((None, None), |networks| {
             let (rx, tx) = networks.values().fold((0, 0), |(rx, tx), stats| {
