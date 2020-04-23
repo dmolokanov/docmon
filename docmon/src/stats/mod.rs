@@ -10,7 +10,7 @@ pub use collect::Collector;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Stats {
-    timestamp: chrono::DateTime<chrono::Utc>,
+    timestamp: String,
     id: String,
     name: String,
     cpu_percentage: Option<f64>,
@@ -103,8 +103,12 @@ impl TryFrom<bollard::container::Stats> for Stats {
                     (Some(read), Some(write))
                 });
 
+        let timestamp = stats
+            .read
+            .to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+
         Ok(Self {
-            timestamp: stats.read,
+            timestamp,
             id: stats.id[..12].into(),
             name: stats.name[1..].into(),
             cpu_percentage,
