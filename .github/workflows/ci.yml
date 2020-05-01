@@ -20,4 +20,8 @@ jobs:
       run: make release
     - name: package
       run: make deb
+    - uses: actions/upload-artifact@v2
+      with:
+        name: docmon_0.1.0-1_amd64.deb
+        path: target/release/docmon_0.1.0-1_amd64.deb 
 
