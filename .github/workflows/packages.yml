@@ -12,7 +12,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - run: echo $GITHUB_RUN_ID
+    - name: set variables
+      run: |
+        echo "::set-env name=VERSION::$(cargo pkgid -p docmond | cut -d# -f2 | cut -d: -f2)"
+        echo "::set-env name=REVISION::$(git rev-parse --short HEAD)"
+    - run: |
+        echo "$VERSION-$REVISION"
     - uses: actions/checkout@v2
     - name: install tools
       run: |
