@@ -31,7 +31,6 @@ all:
 
 release:
 	$(CARGO) build -p docmond --release
-	strip $(TARGET)/docmond
 
 install: release
 	$(INSTALL_PROGRAM) -D $(TARGET)/docmond $(DESTDIR)$(bindir)/docmond
