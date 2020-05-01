@@ -7,7 +7,7 @@ on:
     branches: [ master ]
 
 jobs:
-  build:
+  package-amd64:
 
     runs-on: ubuntu-latest
 
@@ -25,3 +25,21 @@ jobs:
         name: docmon_0.1.0-1_amd64.deb
         path: target/release/docmon_0.1.0-1_amd64.deb 
 
+  package-armv7:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: install tools
+      run: |
+        sudo apt update && sudo apt install -y make debhelper build-essential gcc-arm-linux-gnueabihf
+        cargo install cross
+    - name: build
+      run: make release 'CARGO=cross'
+    - name: package
+      run: make deb 'TARGET=target/armv7-unknown-linux-gnueabihf/release' 'DPKGFLAGS=-b -us -uc -i --host-arch armhf'
+    - uses: actions/upload-artifact@v2
+      with:
+        name: docmon_0.1.0-1_armhf.deb
+        path: target/armv7-unknown-linux-gnueabihf/release/docmon_0.1.0-1_armhf.deb
