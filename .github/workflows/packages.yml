@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - run: echo {{ github.run_id }}
+    - run: echo $GITHUB_RUN_ID
     - uses: actions/checkout@v2
     - name: install tools
       run: |
