@@ -13,6 +13,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: Build
+    - name: install tools
+      run: |
+        apt update && apt install -y make debhelper build-essential gcc-arm-linux-gnueabihf
+    - name: build
       run: make release
+    - name: package
+      run: make deb
 
