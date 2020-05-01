@@ -1,0 +1,43 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure)
+        if [ ! -f /etc/docmon/config.toml ]; then
+            cp -a /etc/docmon/config.toml.template /etc/docmon/config.toml
+        fi
+
+        chmod 400 /etc/docmon/config.toml.template
+        chmod 400 /etc/docmon/config.toml
+
+        echo "==============================================================================="
+        echo ""
+        echo "  IMPORTANT: Please update the configuration file located at:"
+        echo ""
+        echo "    /etc/docmon/config.toml"
+        echo ""
+        echo "  You will need to restart the 'docmon' service for these changes"
+        echo "  to take effect."
+        echo ""
+        echo "  To restart the 'docmon' service, use:"
+        echo ""
+        echo "    'systemctl restart docmon'"
+        echo ""
+        echo "  These commands may need to be run with sudo depending on your environment."
+        echo ""
+        echo "==============================================================================="
+    ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
+
+#DEBHELPER#
+
+exit 0

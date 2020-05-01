@@ -1,0 +1,14 @@
+Source: docmon
+Section: admin
+Priority: extra
+Maintainer: Denis Molokanov <dmolokanov@users.noreply.github.com>
+Build-Depends: debhelper (>=11~)
+Standards-Version: 4.1.4
+Homepage: https://github.com/dmolokanov/docmon
+
+Package: docmon
+Architecture: any
+Multi-Arch: foreign
+Depends: ${misc:Depends}, ${shlibs:Depends}
+Description: Docker stats daemon
+ A daemon for sending a live stream of container(s) resource usage statistics to Azure Log Analytics.

@@ -4,5 +4,5 @@ shared_key = ""
 
 [publisher]
 log_name = "StatEntries"
-batch_size = 3
+batch_size = 200
 interval = 10

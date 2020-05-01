@@ -1,0 +1,5 @@
+docmon (@version@-@revision@) UNRELEASED; urgency=low
+
+  * Initial release.
+
+ -- Denis Molokanov <dmolokanov@users.noreply.github.com>  Thu, 30 Apr 2020 22:38:58 -0700
