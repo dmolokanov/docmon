@@ -24,13 +24,14 @@ unitdir?=/lib/systemd/system
 bindir?=$(exec_prefix)/bin
 srcdir?=.
 
+CARGOFLAGS=--manifest-path=$(srcdir)/Cargo.toml
 DPKGFLAGS=-b -rfakeroot -us -uc -i
 
 all:
-	$(CARGO) build --all
+	$(CARGO) build $(CARGOFLAGS)
 
 release:
-	$(CARGO) build -p docmond --release
+	$(CARGO) build $(CARGOFLAGS) -p docmond --release
 
 install: release
 	$(INSTALL_PROGRAM) -D $(TARGET)/docmond $(DESTDIR)$(bindir)/docmond
