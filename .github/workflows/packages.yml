@@ -13,6 +13,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - uses: actions/upload-artifact@v2
+      with:
+        name: docmon_{{ $PACKAGE_VERSION-$PACKAGE_REVISION }}_amd64.deb
+        path: target/release/docmon_{{ $PACKAGE_VERSION-$PACKAGE_REVISION }}_amd64.deb 
     - name: set variables
       run: |
         echo "::set-env name=PACKAGE_VERSION::$(cargo pkgid -p docmond | cut -d# -f2 | cut -d: -f2)"
