@@ -52,11 +52,7 @@ jobs:
         cargo install cross
         
     - name: Make deb package
-      run: |
-        make deb "VERSION=${PACKAGE_VERSION}" "REVISION=${PACKAGE_REVISION}" "CARGO=cross" "TARGET=target/armv7-unknown-linux-gnueabihf/release" "DPKGFLAGS=-b -us -uc -i --host-arch armhf"
-        ls target
-        ls target/armv7-unknown-linux-gnueabihf
-        ls target/armv7-unknown-linux-gnueabihf/release
+      run: make deb "VERSION=${PACKAGE_VERSION}" "REVISION=${PACKAGE_REVISION}" "CARGO=cross" "TARGET=target/release" "DPKGFLAGS=-b -us -uc -i --host-arch armhf"
 
     - name: Publish artifact
       uses: actions/upload-artifact@v2
