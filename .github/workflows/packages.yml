@@ -13,27 +13,25 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-    - name: set variables
+    - name: Set variables
       run: |
         echo "::set-env name=PACKAGE_VERSION::$(cargo pkgid -p docmond | cut -d# -f2 | cut -d: -f2)"
         echo "::set-env name=PACKAGE_REVISION::$(git rev-parse --short HEAD)"
-    - uses: actions/upload-artifact@v2
+
+    - name: Install tools
+      run: |
+        sudo apt update && sudo apt install -y make debhelper build-essential
+
+    - name: Package
+      run: make deb 'VERSION=$PACKAGE_VERSION' 'REVISION=$PACKAGE_REVISION'
+      
+    - name: Publish artifact
+      uses: actions/upload-artifact@v2
       env:
         package_name:  docmon_${{ env.PACKAGE_VERSION }}-${{ env.PACKAGE_REVISION}}_amd64.deb
       with:
         name: ${{ env.package_name }}
         path: target/release/${{ env.package_name }}
-    - name: install tools
-      run: |
-        sudo apt update && sudo apt install -y make debhelper build-essential
-    - name: build
-      run: make release 'VERSION=$PACKAGE_VERSION' 'REVISION=$PACKAGE_REVISION'
-    - name: package
-      run: make deb 'VERSION=$PACKAGE_VERSION' 'REVISION=$PACKAGE_REVISION'
-    - uses: actions/upload-artifact@v2
-      with:
-        name: docmon_{{ $PACKAGE_VERSION-$PACKAGE_REVISION }}_amd64.deb
-        path: target/release/docmon_{{ $PACKAGE_VERSION-$PACKAGE_REVISION }}_amd64.deb 
 
   package-arm32:
 
