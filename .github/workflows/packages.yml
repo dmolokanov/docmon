@@ -24,12 +24,12 @@ jobs:
         sudo apt update && sudo apt install -y make debhelper build-essential
 
     - name: Make deb package
-      run: make deb 'VERSION=$PACKAGE_VERSION' 'REVISION=$PACKAGE_REVISION'
+      run: make deb "VERSION=${PACKAGE_VERSION}" "REVISION=${PACKAGE_REVISION}"
       
     - name: Publish artifact
       uses: actions/upload-artifact@v2
       env:
-        package_name:  docmon_${{ env.PACKAGE_VERSION }}-${{ env.PACKAGE_REVISION}}_amd64.deb
+        package_name:  docmon_${{ env.PACKAGE_VERSION }}-${{ env.PACKAGE_REVISION }}_amd64.deb
       with:
         name: ${{ env.package_name }}
         path: target/release/${{ env.package_name }}
@@ -52,12 +52,12 @@ jobs:
         cargo install cross
         
     - name: Make deb package
-      run: make deb 'VERSION=$PACKAGE_VERSION' 'REVISION=$PACKAGE_REVISION' 'CARGO=cross' 'TARGET=target/armv7-unknown-linux-gnueabihf/release' 'DPKGFLAGS=-b -us -uc -i --host-arch armhf'
+      run: make deb "VERSION=${PACKAGE_VERSION}" "REVISION=${PACKAGE_REVISION}" "CARGO=cross" "TARGET=target/armv7-unknown-linux-gnueabihf/release" "DPKGFLAGS=-b -us -uc -i --host-arch armhf"
 
     - name: Publish artifact
       uses: actions/upload-artifact@v2
       env:
-        package_name:  docmon_${{ env.PACKAGE_VERSION }}-${{ env.PACKAGE_REVISION}}_armhf.deb
+        package_name:  docmon_${{ env.PACKAGE_VERSION }}-${{ env.PACKAGE_REVISION }}_armhf.deb
       with:
         name: ${{ env.package_name }}
         path: target/release/${{ env.package_name }}
