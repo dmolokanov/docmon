@@ -60,4 +60,4 @@ jobs:
         package_name:  docmon_${{ env.PACKAGE_VERSION }}-${{ env.PACKAGE_REVISION }}_armhf.deb
       with:
         name: ${{ env.package_name }}
-        path: target/release/${{ env.package_name }}
+        path: target/armv7-unknown-linux-gnueabihf/release/${{ env.package_name }}
