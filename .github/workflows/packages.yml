@@ -17,7 +17,7 @@ jobs:
       run: |
         echo "::set-env name=PACKAGE_VERSION::$(cargo pkgid -p docmond | cut -d# -f2 | cut -d: -f2)"
         echo "::set-env name=PACKAGE_REVISION::$(git rev-parse --short HEAD)"
-        echo "::set-env name=PACKAGE_NAME::docmon_$(PACKAGE_VERSION)-$(PACKAGE_REVISION)_amd64.deb"
+        echo "::set-env name=PACKAGE_NAME::docmon_"$PACKAGE_VERSION"-"$PACKAGE_REVISION"_amd64.deb"
     - uses: actions/upload-artifact@v2
       with:
         name: ${{ env.PACKAGE_NAME }}
