@@ -1,0 +1,61 @@
+name: packages
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  package-amd64:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+      
+    - name: Set variables
+      run: |
+        echo "::set-env name=PACKAGE_VERSION::$(cargo pkgid -p docmond | cut -d# -f2 | cut -d: -f2)"
+        echo "::set-env name=PACKAGE_REVISION::$(git rev-parse --short HEAD)"
+
+    - name: Install tools
+      run: |
+        sudo apt update && sudo apt install -y make debhelper build-essential
+
+    - name: Make deb package
+      run: make deb "VERSION=${PACKAGE_VERSION}" "REVISION=${PACKAGE_REVISION}"
+      
+    - name: Publish artifact
+      uses: actions/upload-artifact@v2
+      env:
+        package_name:  docmon_${{ env.PACKAGE_VERSION }}-${{ env.PACKAGE_REVISION }}_amd64.deb
+      with:
+        name: ${{ env.package_name }}
+        path: target/release/${{ env.package_name }}
+
+  package-arm32:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+      
+    - name: Set variables
+      run: |
+        echo "::set-env name=PACKAGE_VERSION::$(cargo pkgid -p docmond | cut -d# -f2 | cut -d: -f2)"
+        echo "::set-env name=PACKAGE_REVISION::$(git rev-parse --short HEAD)"
+        
+    - name: Install tools
+      run: |
+        sudo apt update && sudo apt install -y make debhelper build-essential gcc-arm-linux-gnueabihf
+        cargo install cross
+        
+    - name: Make deb package
+      run: make deb "VERSION=${PACKAGE_VERSION}" "REVISION=${PACKAGE_REVISION}" "CARGO=cross" "CARGOFLAGS=--target armv7-unknown-linux-gnueabihf" "TARGET=target/armv7-unknown-linux-gnueabihf/release" "DPKGFLAGS=-b -us -uc -i --host-arch armhf"
+
+    - name: Publish artifact
+      uses: actions/upload-artifact@v2
+      env:
+        package_name:  docmon_${{ env.PACKAGE_VERSION }}-${{ env.PACKAGE_REVISION }}_armhf.deb
+      with:
+        name: ${{ env.package_name }}
+        path: target/armv7-unknown-linux-gnueabihf/release/${{ env.package_name }}
