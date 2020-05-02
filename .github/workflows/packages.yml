@@ -15,21 +15,19 @@ jobs:
     - uses: actions/checkout@v2
     - name: set variables
       run: |
-        echo "::set-env name=VERSION::$(cargo pkgid -p docmond | cut -d# -f2 | cut -d: -f2)"
-        echo "::set-env name=REVISION::$(git rev-parse --short HEAD)"
-    - run: |
-        echo "$VERSION-$REVISION"
+        echo "::set-env name=PACKAGE_VERSION::$(cargo pkgid -p docmond | cut -d# -f2 | cut -d: -f2)"
+        echo "::set-env name=PACKAGE_REVISION::$(git rev-parse --short HEAD)"
     - name: install tools
       run: |
         sudo apt update && sudo apt install -y make debhelper build-essential
     - name: build
-      run: make release
+      run: make release 'VERSION=$PACKAGE_VERSION' 'REVISION=$PACKAGE_REVISION'
     - name: package
-      run: make deb
+      run: make deb 'VERSION=$PACKAGE_VERSION' 'REVISION=$PACKAGE_REVISION'
     - uses: actions/upload-artifact@v2
       with:
-        name: docmon_0.1.0-1_amd64.deb
-        path: target/release/docmon_0.1.0-1_amd64.deb 
+        name: docmon_{{ $PACKAGE_VERSION-$PACKAGE_REVISION }}_amd64.deb
+        path: target/release/docmon_{{ $PACKAGE_VERSION-$PACKAGE_REVISION }}_amd64.deb 
 
   package-arm32:
 
