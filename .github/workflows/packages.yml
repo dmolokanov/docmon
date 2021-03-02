@@ -17,11 +17,6 @@ jobs:
       run: |
         echo "PACKAGE_VERSION=$(cargo pkgid -p docmond | cut -d# -f2 | cut -d: -f2)" >> $GITHUB_ENV
         echo "PACKAGE_REVISION=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-    
-    - name: show variables
-      run: |
-        echo "${{ env.PACKAGE_VERSION }}"
-        echo "${PACKAGE_VERSION}"
 
     - name: Install tools
       run: |
@@ -47,8 +42,8 @@ jobs:
       
     - name: Set variables
       run: |
-        echo "::set-env name=PACKAGE_VERSION::$(cargo pkgid -p docmond | cut -d# -f2 | cut -d: -f2)"
-        echo "::set-env name=PACKAGE_REVISION::$(git rev-parse --short HEAD)"
+        echo "PACKAGE_VERSION=$(cargo pkgid -p docmond | cut -d# -f2 | cut -d: -f2)" >> $GITHUB_ENV
+        echo "PACKAGE_REVISION=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
         
     - name: Install tools
       run: |
