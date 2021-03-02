@@ -1,9 +1,10 @@
 name: packages
 
 on:
+  workflow_dispatch:
   push:
     branches: [ master ]
-
+  
 jobs:
   package-amd64:
 
